@@ -1,0 +1,45 @@
+{
+   "_id": "0619ef39-fca6-4001-15e8-9c180800275a",
+   "_rev": "1-831a36c9cb2bdddb299035fd83daabea",
+   "doc_type": "Stats",
+   "uuid": "0619ef39-fca6-4001-15e8-9c180800275a",
+   "numNodes": 4,
+   "timestamp": "2011-08-19T16:51:44Z",
+   "buckets": {
+       "total": 1,
+       "membase": 1,
+       "memcached": 0
+   },
+   "ram": {
+       "total": 67414867968,
+       "quotaTotal": 4194304000,
+       "quotaUsed": 4194304000
+   },
+   "dogbowled": "True",
+   "gae_state": "done",
+   "version": "1.7.0",
+   "componentsVersion": {
+       "kernel": "2.14.3",
+       "os_mon": "2.2.5",
+       "stdlib": "1.17.3",
+       "mnesia": "4.4.17",
+       "inets": "5.5.2",
+       "sasl": "2.1.9.3",
+       "ns_server": "1.7.0"
+   },
+   "nodes": {
+       "uptime": [
+           "158950",
+           "157937",
+           "7479",
+           "158421"
+       ],
+       "os": [
+           "x86_64-unknown-linux-gnu",
+           "x86_64-unknown-linux-gnu",
+           "x86_64-unknown-linux-gnu",
+           "x86_64-unknown-linux-gnu"
+       ]
+   },
+   "browser": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.18) Gecko/20110614 Firefox/3.6.18"
+}
