@@ -1,0 +1,8 @@
+1. Install couchbase python client library 
+   git clone git://github.com/couchbase/couchbase-python-client.git
+   python setup.py install
+
+2. Run docloader
+   docloader.py -u Administrator -p 123456 -b mybucket testapp.zip
+or docloader.py -u Administrator -p 123456 -b mybucket testapp.zip
+
