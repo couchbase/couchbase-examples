@@ -1,3 +1,4 @@
+
 1. Install couchbase python client library 
    git clone git://github.com/couchbase/couchbase-python-client.git
    python setup.py install
