@@ -14,7 +14,7 @@ def usage(err=0):
 Usage: %s [-u user [-p password]] [-n host:port] [-b bucket] <directory>|zipfile
 
 Example:
-  %s -u user -p secret9876 localhost:8091 -b default mydir 
+  %s -u user -p secret9876 localhost:8091 -b mybucket datadir 
 """ % (os.path.basename(sys.argv[0]), (os.path.basename(sys.argv[0])))
     sys.exit(err)
 
