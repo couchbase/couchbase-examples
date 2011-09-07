@@ -14,7 +14,7 @@ def usage(err=0):
 Usage: %s [-u user [-p password]] [-n host:port] [-b bucket] <directory>|zipfile
 
 Example:
-  %s -u user -p secret9876 localhost:8091 default mydir 
+  %s -u user -p secret9876 localhost:8091 -b default mydir 
 """ % (os.path.basename(sys.argv[0]), (os.path.basename(sys.argv[0])))
     sys.exit(err)
 
@@ -98,7 +98,7 @@ def populate_docs(bucket, dir, views):
 
 def main():
     user, pswd, host, bucket, args = parse_args(sys.argv[1:])
-
+    print user,pswd,host,bucket, args
     cb = client.Server(host, user, pswd)
 
     try:
