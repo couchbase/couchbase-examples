@@ -4,7 +4,6 @@
 import sys, zipfile, os, os.path
 import getopt
 import json
-import ast
 import tempfile
 import re
 
@@ -74,7 +73,10 @@ def listFiles(bucket, dir, views):
         if os.path.isfile(os.path.join(basedir, item)):
             with open(os.path.join(basedir, item), 'r') as fp:
                 print "working with ", item
-                save_doc(bucket, dockey, fp, views)
+                fileslashed = re.split(".json", item)
+                fileinlist = re.split("/", fileslashed[0])
+                file_for_key = fileinlist.pop()
+                save_doc(bucket, file_for_key, fp, views)
         else:
             subdirlist.append(os.path.join(basedir, item))
     for subdir in subdirlist:
@@ -83,10 +85,8 @@ def listFiles(bucket, dir, views):
 def unzip_file_and_upload(bucket,file, views):
     zfobj = zipfile.ZipFile(file)
     for name in zfobj.namelist():
-        #if name.endswith('/'):
-            #print "dir:", name
-        #else:
-            #print 'file:', name
+        if not name.endswith('/'):
+            print 'working with ', name
             fileslashed = re.split(".json", name)
             fileinlist = re.split("/", fileslashed[0])
             file_for_key = fileinlist.pop()
@@ -120,9 +120,10 @@ def main():
     populate_docs(newbucket, dir, views)
 
     # execute views at least once
-    for viewpath in views:
-        rows = newbucket.view(viewpath)
-        #for row in rows:
-            #print row
+    try:
+        for viewpath in views:
+            rows = newbucket.view(viewpath)
+    except:
+        #do nothing, maybe view result is not ready yet
     
 if __name__ == '__main__': main()
