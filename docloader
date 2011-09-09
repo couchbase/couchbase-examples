@@ -65,18 +65,22 @@ def save_doc(bucket, dockey, fp, views):
                   viewpath = result['_id'] + '/_view/' + key
                   views.append(viewpath)
 
+def gen_dockey(filename):
+    fileslashed = re.split(".json", filename)
+    fileinlist = re.split("/", fileslashed[0])
+    file_for_key = fileinlist.pop()
+    return file_for_key
+
 def listFiles(bucket, dir, views):
     basedir = dir
-    print "Files in ", os.path.abspath(dir), ": "
+    #print "Files in ", os.path.abspath(dir), ": "
     subdirlist = []
     for item in os.listdir(dir):
         if os.path.isfile(os.path.join(basedir, item)):
             with open(os.path.join(basedir, item), 'r') as fp:
                 print "working with ", item
-                fileslashed = re.split(".json", item)
-                fileinlist = re.split("/", fileslashed[0])
-                file_for_key = fileinlist.pop()
-                save_doc(bucket, file_for_key, fp, views)
+                dockey = gen_dockey(item)
+                save_doc(bucket, dockey, fp, views)
         else:
             subdirlist.append(os.path.join(basedir, item))
     for subdir in subdirlist:
@@ -87,15 +91,13 @@ def unzip_file_and_upload(bucket,file, views):
     for name in zfobj.namelist():
         if not name.endswith('/'):
             print 'working with ', name
-            fileslashed = re.split(".json", name)
-            fileinlist = re.split("/", fileslashed[0])
-            file_for_key = fileinlist.pop()
+            dockey = gen_dockey(name)
             temp = tempfile.NamedTemporaryFile(delete=False)
             fname = temp.name
             temp.write(zfobj.read(name))              
             temp.close()
             with open(fname, 'r') as fp:
-                save_doc(bucket, file_for_key, fp, views)
+                save_doc(bucket, dockey, fp, views)
             os.remove(fname)
             
 def populate_docs(bucket, dir, views):
