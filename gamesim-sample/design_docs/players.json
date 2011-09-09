@@ -1,0 +1,12 @@
+{
+                '_id': '_design/players',
+                'language': 'javascript',
+                'views': {
+                     'leaderboard': {
+                     "map": "function (doc) {\n  if (doc.jsonType == \"player\") {\n  emit(doc.experience, null);\n  }\n}"
+                     },
+                     'playerlist': {
+                     "map": "function (doc) {\n  if (doc.jsonType == \"player\") {\n    emit(doc._id, null);\n  }\n}"
+                     }
+                 }
+}
