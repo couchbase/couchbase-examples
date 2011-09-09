@@ -125,5 +125,6 @@ def main():
             rows = newbucket.view(viewpath)
     except:
         #do nothing, maybe view result is not ready yet
+        print "View result will be ready after a while"
     
 if __name__ == '__main__': main()
