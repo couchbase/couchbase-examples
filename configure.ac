@@ -7,6 +7,6 @@ m4_include([m4/version.m4])
 AC_INIT(couchbase-examples, VERSION_NUMBER, bin@couchbase.com)
 AM_INIT_AUTOMAKE
 AC_CONFIG_FILES(Makefile, wrapper/wrapper)
-AC_SUBST([localstatedatdir], [${localstatedir}/dat/${package_identifier}])
+AC_SUBST([localstatedatdir], [${localstatedir}/dat])
 
 AC_OUTPUT
