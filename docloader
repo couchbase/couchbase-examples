@@ -24,6 +24,12 @@ def parse_args(args):
     host = 'localhost:8091'
     bucket = 'default'
 
+    if 'REST_USERNAME' in os.environ:
+        user = os.environ['REST_USERNAME']
+
+    if 'REST_PASSWORD' in os.environ:
+        pswd = os.environ['REST_PASSWORD']
+
     try:
         opts, args = getopt.getopt(args, 'hu:p:n:b:', ['help'])
     except getopt.GetoptError, e:
@@ -94,12 +100,12 @@ def unzip_file_and_upload(bucket,file, views):
             dockey = gen_dockey(name)
             temp = tempfile.NamedTemporaryFile(delete=False)
             fname = temp.name
-            temp.write(zfobj.read(name))              
+            temp.write(zfobj.read(name))
             temp.close()
             with open(fname, 'r') as fp:
                 save_doc(bucket, dockey, fp, views)
             os.remove(fname)
-            
+
 def populate_docs(bucket, dir, views):
     if dir.endswith('.zip'):
         unzip_file_and_upload(bucket, dir, views)
@@ -128,5 +134,5 @@ def main():
     except:
         #do nothing, maybe view result is not ready yet
         print "View result will be ready after a while"
-    
+
 if __name__ == '__main__': main()
