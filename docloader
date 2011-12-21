@@ -11,10 +11,10 @@ from couchbase import client
 
 def usage(err=0):
     print >> sys.stderr, """
-Usage: %s [-u user [-p password]] [-n host:port] [-b bucket] <directory>|zipfile
+Usage: %s [-u user [-p password]] [-n host:port] [-b bucket] [-s bucket_size(MB)] <directory>|zipfile
 
 Example:
-  %s -u user -p secret9876 -n localhost:8091 -b mybucket datadir
+  %s -u user -p secret9876 -n localhost:8091 -b mybucket -s 100 datadir
 """ % (os.path.basename(sys.argv[0]), (os.path.basename(sys.argv[0])))
     sys.exit(err)
 
@@ -23,6 +23,7 @@ def parse_args(args):
     pswd = None
     host = 'localhost:8091'
     bucket = 'default'
+    ram_quota_mb = 100
 
     if 'REST_USERNAME' in os.environ:
         user = os.environ['REST_USERNAME']
@@ -31,7 +32,7 @@ def parse_args(args):
         pswd = os.environ['REST_PASSWORD']
 
     try:
-        opts, args = getopt.getopt(args, 'hu:p:n:b:', ['help'])
+        opts, args = getopt.getopt(args, 'hu:p:n:b:s:', ['help'])
     except getopt.GetoptError, e:
         usage("ERROR: " + e.msg)
 
@@ -46,13 +47,15 @@ def parse_args(args):
             host = a
         elif o == '-b':
             bucket = a
+        elif o == '-s':
+            ram_quota_mb = int(a)
         else:
             usage("ERROR: unknown option - " + o)
 
     if not args or len(args) < 1:
         usage("ERROR: missing upload directory or zipped file.")
 
-    return user, pswd, host, bucket, args
+    return user, pswd, host, bucket, ram_quota_mb, args
 
 def save_doc(bucket, dockey, fp, views):
     buf = fp.read()
@@ -113,12 +116,12 @@ def populate_docs(bucket, dir, views):
         listFiles(bucket, dir, views)
 
 def main():
-    user, pswd, host, bucket, args = parse_args(sys.argv[1:])
-    print user,pswd,host,bucket, args
+    user, pswd, host, bucket, ram_quota_mb, args = parse_args(sys.argv[1:])
+    print user,pswd,host,bucket, ram_quota_mb, args
     cb = client.Server(host, user, pswd)
 
     try:
-        newbucket = cb.create(bucket, ram_quota_mb=100, replica=1)
+        newbucket = cb.create(bucket, ram_quota_mb=ram_quota_mb, replica=1)
     except:
         newbucket = cb[bucket]
 
