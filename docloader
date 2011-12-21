@@ -131,11 +131,7 @@ def main():
     populate_docs(newbucket, dir, views)
 
     # execute views at least once
-    try:
-        for viewpath in views:
-            rows = newbucket.view(viewpath)
-    except:
-        #do nothing, maybe view result is not ready yet
-        print "View result will be ready after a while"
+    for viewpath in views:
+        rows = newbucket.view(viewpath, stale="update_after")
 
 if __name__ == '__main__': main()
