@@ -65,6 +65,7 @@ def save_doc(bucket, dockey, fp, views):
           bucket.set(dockey, 0, 0, json.dumps(result))
         else:
           try:
+              result['_id'] = result['_id'].encode('UTF-8')
               doc_id = bucket.save(result)
               print "just now saving", doc_id
           except:
