@@ -87,10 +87,14 @@ def listFiles(bucket, dir, views):
     subdirlist = []
     for item in os.listdir(dir):
         if os.path.isfile(os.path.join(basedir, item)):
-            with open(os.path.join(basedir, item), 'r') as fp:
+            try:
+                fp = open(os.path.join(basedir, item), 'r')
                 print "working with ", item
                 dockey = gen_dockey(item)
                 save_doc(bucket, dockey, fp, views)
+                fp.close()
+            except IOError as error:
+                print error
         else:
             subdirlist.append(os.path.join(basedir, item))
     for subdir in subdirlist:
@@ -106,8 +110,12 @@ def unzip_file_and_upload(bucket,file, views):
             fname = temp.name
             temp.write(zfobj.read(name))
             temp.close()
-            with open(fname, 'r') as fp:
+            try:
+                fp = open(fname, 'r')
                 save_doc(bucket, dockey, fp, views)
+                fp.close()
+            except IOError as error:
+                print error
             os.remove(fname)
 
 def populate_docs(bucket, dir, views):
