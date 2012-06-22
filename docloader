@@ -3,7 +3,7 @@
 
 import sys, zipfile, os, os.path
 import getopt
-import json
+import simplejson as json
 import tempfile
 import re
 
