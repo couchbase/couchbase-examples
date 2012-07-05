@@ -106,17 +106,17 @@ def unzip_file_and_upload(bucket,file, views):
         if not name.endswith('/'):
             print 'working with ', name
             dockey = gen_dockey(name)
-            temp = tempfile.NamedTemporaryFile(delete=False)
+            temp = tempfile.NamedTemporaryFile()
             fname = temp.name
             temp.write(zfobj.read(name))
-            temp.close()
+            temp.flush()
             try:
                 fp = open(fname, 'r')
                 save_doc(bucket, dockey, fp, views)
                 fp.close()
             except IOError, error:
                 print error
-            os.remove(fname)
+            temp.close()
 
 def populate_docs(bucket, dir, views):
     if dir.endswith('.zip'):
