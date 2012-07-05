@@ -3,8 +3,8 @@
    git clone git://github.com/couchbase/couchbase-python-client.git
    python setup.py install
 
-2. Run docloader
-   docloader.py -u Administrator -p 123456 -b mybucket testapp.zip
-or docloader.py -u Administrator -p 123456 -b mybucket testapp.zip
-or docloader -p 8091 -b newsim -u newsim -p newsim gamesim-sample.zip
+2. Run cbdocloader
+   cbdocloader.py -u Administrator -p 123456 -b mybucket testapp.zip
+or cbdocloader.py -u Administrator -p 123456 -b mybucket testapp.zip
+or cbdocloader -p 8091 -b newsim -u newsim -p newsim gamesim-sample.zip
 

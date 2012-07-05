@@ -4,9 +4,9 @@ default:
 
 pythonlibdir=$(libdir)/python
 
-pythonlib_SCRIPTS= docloader
+pythonlib_SCRIPTS= cbdocloader
 
-PYTHON_TOOLS= wrapper/docloader
+PYTHON_TOOLS= wrapper/cbdocloader
 
 ${PYTHON_TOOLS}: wrapper/wrapper
 	cp $< $@

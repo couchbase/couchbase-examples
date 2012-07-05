@@ -35,7 +35,7 @@
 /m4/ltversion.m4
 /m4/lt~obsolete.m4
 /m4/version.m4
-/wrapper/docloader
+/wrapper/cbdocloader
 /wrapper/wrapper
 Makefile
 Makefile.in
