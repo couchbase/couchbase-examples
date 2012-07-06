@@ -42,23 +42,19 @@ class DocLoader:
 
         print self.options, self.args
 
-    def save_doc(self, bucket, dockey, fp, views):
-        buf = fp.read()
-        result = json.loads(buf)
-        if isinstance(result, dict):
-            if '_id' not in result:
-                bucket.set(dockey, 0, 0, json.dumps(result))
+    def save_doc(self, bucket, dockey, datafile, views):
+        raw_data = datafile.read()
+        try:
+            doc = json.loads(raw_data)
+            if '_id' not in doc:
+                bucket.set(dockey, 0, 0, raw_data)
             else:
-                try:
-                    result['_id'] = result['_id'].encode('UTF-8')
-                    doc_id = bucket.save(result)
-                    print "just now saving %s" % doc_id
-                except:
-                    doc_id = "_design/testing"
-                if result['_id'] and 'views' in result:
-                    for key in result['views'].iterkeys():
-                        viewpath = result['_id'] + '/_view/' + key
-                        views.append(viewpath)
+                doc['_id'] = doc['_id'].encode('UTF-8')
+                bucket.save(doc)
+                for view in doc.get('views', []):
+                    views.append(doc['_id'] + '/_view/' + view)
+        except ValueError, error:
+            print error
 
     def gen_dockey(self, filename):
         return os.path.basename(filename).split('.')[0]
