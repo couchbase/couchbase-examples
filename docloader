@@ -12,117 +12,124 @@ from optparse import OptionParser
 
 from couchbase import client
 
-def parse_args():
-    usage = "usage: %prog [options] <directory>|zipfile\n\n" + \
-            "Example: %prog -u Administrator -p password -n 127.0.0.1:8091 " + \
-            "-b mybucket -s 100 gamesim-sample.zip"
+class DocLoader:
 
-    parser = OptionParser(usage)
+    def __init__(self):
+        pass
 
-    username = os.environ.get('REST_USERNAME', 'Administrator')
-    password = os.environ.get('REST_PASSWORD', 'password')
+    def parse_args(self):
+        usage = "usage: %prog [options] <directory>|zipfile\n\n" + \
+                "Example: %prog -u Administrator -p password -n 127.0.0.1:8091 " + \
+                "-b mybucket -s 100 gamesim-sample.zip"
 
-    parser.add_option('-u', dest='username', default=username,
-                      help='Username', metavar='Administrator')
-    parser.add_option('-p', dest='password', default=password,
-                      help='Password', metavar='password')
-    parser.add_option('-b', dest='bucket', default='gamesim-sample',
-                      help='Bucket', metavar='gamesim-sample')
-    parser.add_option('-n', dest='node', default='127.0.0.1:8091',
-                      help='Node address', metavar='127.0.0.1:8091')
-    parser.add_option('-s', dest='ram_quota', default=100, type='int',
-                      help='RAM quota in MB', metavar=100)
+        parser = OptionParser(usage)
 
-    options, args = parser.parse_args()
+        username = os.environ.get('REST_USERNAME', 'Administrator')
+        password = os.environ.get('REST_PASSWORD', 'password')
 
-    if not args:
-        parser.print_help()
-        sys.exit()
+        parser.add_option('-u', dest='username', default=username,
+                          help='Username', metavar='Administrator')
+        parser.add_option('-p', dest='password', default=password,
+                          help='Password', metavar='password')
+        parser.add_option('-b', dest='bucket', default='gamesim-sample',
+                          help='Bucket', metavar='gamesim-sample')
+        parser.add_option('-n', dest='node', default='127.0.0.1:8091',
+                          help='Node address', metavar='127.0.0.1:8091')
+        parser.add_option('-s', dest='ram_quota', default=100, type='int',
+                          help='RAM quota in MB', metavar=100)
 
-    return (options.username, options.password, options.node, options.bucket,
-           options.ram_quota, args)
+        self.options, self.args = parser.parse_args()
 
-def save_doc(bucket, dockey, fp, views):
-    buf = fp.read()
-    result = json.loads(buf)
-    if isinstance(result, dict):
-        if '_id' not in result:
-            bucket.set(dockey, 0, 0, json.dumps(result))
+        if not self.args:
+            parser.print_help()
+            sys.exit()
+
+        print self.options, self.args
+
+    def save_doc(self, bucket, dockey, fp, views):
+        buf = fp.read()
+        result = json.loads(buf)
+        if isinstance(result, dict):
+            if '_id' not in result:
+                bucket.set(dockey, 0, 0, json.dumps(result))
+            else:
+                try:
+                    result['_id'] = result['_id'].encode('UTF-8')
+                    doc_id = bucket.save(result)
+                    print "just now saving", doc_id
+                except:
+                    doc_id = "_design/testing"
+                if result['_id'] and 'views' in result:
+                    for key in result['views'].iterkeys():
+                        viewpath = result['_id'] + '/_view/' + key
+                        views.append(viewpath)
+
+    def gen_dockey(self, filename):
+        fileslashed = re.split(".json", filename)
+        fileinlist = re.split("/", fileslashed[0])
+        file_for_key = fileinlist.pop()
+        return file_for_key
+
+    def list_files(self, bucket, views, subdir=None):
+        if not subdir:
+            subdir = self.args[0]
+        #print "Files in ", os.path.abspath(dir), ": "
+        subdirlist = []
+        for item in os.listdir(subdir):
+            if os.path.isfile(os.path.join(subdir, item)):
+                try:
+                    fp = open(os.path.join(subdir, item), 'r')
+                    print "working with ", item
+                    dockey = self.gen_dockey(item)
+                    self.save_doc(bucket, dockey, fp, views)
+                    fp.close()
+                except IOError, error:
+                    print error
+            else:
+                subdirlist.append(os.path.join(subdir, item))
+        for dir in subdirlist:
+            self.list_files(bucket, views, dir)
+
+    def unzip_file_and_upload(self, bucket, views):
+        zfobj = zipfile.ZipFile(self.args[0])
+        for name in zfobj.namelist():
+            if not name.endswith('/'):
+                print 'working with ', name
+                dockey = self.gen_dockey(name)
+                temp = tempfile.NamedTemporaryFile()
+                fname = temp.name
+                temp.write(zfobj.read(name))
+                temp.flush()
+                try:
+                    fp = open(fname, 'r')
+                    self.save_doc(bucket, dockey, fp, views)
+                    fp.close()
+                except IOError, error:
+                    print error
+                temp.close()
+
+    def populate_docs(self, bucket, views):
+        if self.args[0].endswith('.zip'):
+            self.unzip_file_and_upload(bucket, views)
         else:
-            try:
-                result['_id'] = result['_id'].encode('UTF-8')
-                doc_id = bucket.save(result)
-                print "just now saving", doc_id
-            except:
-                doc_id = "_design/testing"
-            if result['_id'] and 'views' in result:
-                for key in result['views'].iterkeys():
-                    viewpath = result['_id'] + '/_view/' + key
-                    views.append(viewpath)
-
-def gen_dockey(filename):
-    fileslashed = re.split(".json", filename)
-    fileinlist = re.split("/", fileslashed[0])
-    file_for_key = fileinlist.pop()
-    return file_for_key
-
-def list_files(bucket, dir, views):
-    basedir = dir
-    #print "Files in ", os.path.abspath(dir), ": "
-    subdirlist = []
-    for item in os.listdir(dir):
-        if os.path.isfile(os.path.join(basedir, item)):
-            try:
-                fp = open(os.path.join(basedir, item), 'r')
-                print "working with ", item
-                dockey = gen_dockey(item)
-                save_doc(bucket, dockey, fp, views)
-                fp.close()
-            except IOError, error:
-                print error
-        else:
-            subdirlist.append(os.path.join(basedir, item))
-    for subdir in subdirlist:
-        list_files(bucket, subdir, views)
-
-def unzip_file_and_upload(bucket,file, views):
-    zfobj = zipfile.ZipFile(file)
-    for name in zfobj.namelist():
-        if not name.endswith('/'):
-            print 'working with ', name
-            dockey = gen_dockey(name)
-            temp = tempfile.NamedTemporaryFile()
-            fname = temp.name
-            temp.write(zfobj.read(name))
-            temp.flush()
-            try:
-                fp = open(fname, 'r')
-                save_doc(bucket, dockey, fp, views)
-                fp.close()
-            except IOError, error:
-                print error
-            temp.close()
-
-def populate_docs(bucket, dir, views):
-    if dir.endswith('.zip'):
-        unzip_file_and_upload(bucket, dir, views)
-    else:
-        list_files(bucket, dir, views)
+            self.list_files(bucket, views)
 
 def main():
-    user, pswd, host, bucket, ram_quota_mb, args = parse_args()
-    print user,pswd,host,bucket, ram_quota_mb, args
-    cb = client.Server(host, user, pswd)
+    docloader = DocLoader()
+    docloader.parse_args()
+
+    cb = client.Server(docloader.options.node, docloader.options.username,
+                       docloader.options.password)
 
     try:
-        newbucket = cb.create(bucket, ram_quota_mb=ram_quota_mb, replica=1)
+        newbucket = cb.create(docloader.options.bucket, replica=1,
+                              ram_quota_mb=docloader.options.ram_quota)
     except:
-        newbucket = cb[bucket]
+        newbucket = cb[docloader.options.bucket]
 
     #upload documents
-    dir = args[0]
     views = []
-    populate_docs(newbucket, dir, views)
+    docloader.populate_docs(newbucket, views)
 
     # execute views at least once
     for viewpath in views:
