@@ -66,7 +66,7 @@ def gen_dockey(filename):
     file_for_key = fileinlist.pop()
     return file_for_key
 
-def listFiles(bucket, dir, views):
+def list_files(bucket, dir, views):
     basedir = dir
     #print "Files in ", os.path.abspath(dir), ": "
     subdirlist = []
@@ -83,7 +83,7 @@ def listFiles(bucket, dir, views):
         else:
             subdirlist.append(os.path.join(basedir, item))
     for subdir in subdirlist:
-        listFiles(bucket, subdir, views)
+        list_files(bucket, subdir, views)
 
 def unzip_file_and_upload(bucket,file, views):
     zfobj = zipfile.ZipFile(file)
@@ -107,7 +107,7 @@ def populate_docs(bucket, dir, views):
     if dir.endswith('.zip'):
         unzip_file_and_upload(bucket, dir, views)
     else:
-        listFiles(bucket, dir, views)
+        list_files(bucket, dir, views)
 
 def main():
     user, pswd, host, bucket, ram_quota_mb, args = parse_args()
