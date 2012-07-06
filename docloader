@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 # -*- python -*-
 
-import sys, zipfile, os, os.path
+import sys
+import zipfile
+import os
+import os.path
 import getopt
 import simplejson as json
 import tempfile
