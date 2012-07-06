@@ -5,60 +5,42 @@ import sys
 import zipfile
 import os
 import os.path
-import getopt
 import simplejson as json
 import tempfile
 import re
+from optparse import OptionParser
 
 from couchbase import client
 
-def usage(err=0):
-    print >> sys.stderr, """
-Usage: %s [-u user [-p password]] [-n host:port] [-b bucket] [-s bucket_size(MB)] <directory>|zipfile
+def parse_args():
+    usage = "usage: %prog [options] <directory>|zipfile\n\n" + \
+            "Example: %prog -u Administrator -p password -n 127.0.0.1:8091 " + \
+            "-b mybucket -s 100 gamesim-sample.zip"
 
-Example:
-  %s -u user -p secret9876 -n localhost:8091 -b mybucket -s 100 datadir
-""" % (os.path.basename(sys.argv[0]), (os.path.basename(sys.argv[0])))
-    sys.exit(err)
+    parser = OptionParser(usage)
 
-def parse_args(args):
-    user = None
-    pswd = None
-    host = 'localhost:8091'
-    bucket = 'default'
-    ram_quota_mb = 100
+    username = os.environ.get('REST_USERNAME', 'Administrator')
+    password = os.environ.get('REST_PASSWORD', 'password')
 
-    if 'REST_USERNAME' in os.environ:
-        user = os.environ['REST_USERNAME']
+    parser.add_option('-u', dest='username', default=username,
+                      help='Username', metavar='Administrator')
+    parser.add_option('-p', dest='password', default=password,
+                      help='Password', metavar='password')
+    parser.add_option('-b', dest='bucket', default='gamesim-sample',
+                      help='Bucket', metavar='gamesim-sample')
+    parser.add_option('-n', dest='node', default='127.0.0.1:8091',
+                      help='Node address', metavar='127.0.0.1:8091')
+    parser.add_option('-s', dest='ram_quota', default=100, type='int',
+                      help='RAM quota in MB', metavar=100)
 
-    if 'REST_PASSWORD' in os.environ:
-        pswd = os.environ['REST_PASSWORD']
+    options, args = parser.parse_args()
 
-    try:
-        opts, args = getopt.getopt(args, 'hu:p:n:b:s:', ['help'])
-    except getopt.GetoptError, e:
-        usage("ERROR: " + e.msg)
+    if not args:
+        parser.print_help()
+        sys.exit()
 
-    for (o, a) in opts:
-        if o == '--help' or o == '-h':
-            usage()
-        elif o == '-u':
-            user = a
-        elif o == '-p':
-            pswd = a
-        elif o == '-n':
-            host = a
-        elif o == '-b':
-            bucket = a
-        elif o == '-s':
-            ram_quota_mb = int(a)
-        else:
-            usage("ERROR: unknown option - " + o)
-
-    if not args or len(args) < 1:
-        usage("ERROR: missing upload directory or zipped file.")
-
-    return user, pswd, host, bucket, ram_quota_mb, args
+    return (options.username, options.password, options.node, options.bucket,
+           options.ram_quota, args)
 
 def save_doc(bucket, dockey, fp, views):
     buf = fp.read()
@@ -128,7 +110,7 @@ def populate_docs(bucket, dir, views):
         listFiles(bucket, dir, views)
 
 def main():
-    user, pswd, host, bucket, ram_quota_mb, args = parse_args(sys.argv[1:])
+    user, pswd, host, bucket, ram_quota_mb, args = parse_args()
     print user,pswd,host,bucket, ram_quota_mb, args
     cb = client.Server(host, user, pswd)
 
