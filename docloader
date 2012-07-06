@@ -143,4 +143,6 @@ def main():
     for viewpath in views:
         rows = newbucket.view(viewpath, stale="update_after")
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    main()
+    os._exit(0)
