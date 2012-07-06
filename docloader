@@ -13,9 +13,6 @@ from couchbase import client
 
 class DocLoader:
 
-    def __init__(self):
-        pass
-
     def parse_args(self):
         usage = "usage: %prog [options] <directory>|zipfile\n\n" + \
                 "Example: %prog -u Administrator -p password -n 127.0.0.1:8091 " + \
@@ -55,7 +52,7 @@ class DocLoader:
                 try:
                     result['_id'] = result['_id'].encode('UTF-8')
                     doc_id = bucket.save(result)
-                    print "just now saving", doc_id
+                    print "just now saving %s" % doc_id
                 except:
                     doc_id = "_design/testing"
                 if result['_id'] and 'views' in result:
@@ -69,13 +66,12 @@ class DocLoader:
     def list_files(self, bucket, views, subdir=None):
         if not subdir:
             subdir = self.args[0]
-        #print "Files in ", os.path.abspath(dir), ": "
-        subdirlist = []
+        subdirlist = list()
         for item in os.listdir(subdir):
             if os.path.isfile(os.path.join(subdir, item)):
                 try:
                     fp = open(os.path.join(subdir, item), 'r')
-                    print "working with ", item
+                    print "working with %s" % item
                     dockey = self.gen_dockey(item)
                     self.save_doc(bucket, dockey, fp, views)
                     fp.close()
@@ -90,7 +86,7 @@ class DocLoader:
         zfobj = zipfile.ZipFile(self.args[0])
         for name in zfobj.namelist():
             if not name.endswith('/'):
-                print 'working with ', name
+                print 'working with %s' % name
                 dockey = self.gen_dockey(name)
                 temp_file = TemporaryFile()
                 temp_file.write(zfobj.read(name))
@@ -117,13 +113,13 @@ def main():
     except:
         newbucket = cb[docloader.options.bucket]
 
-    #upload documents
-    views = []
+    # upload documents
+    views = list()
     docloader.populate_docs(newbucket, views)
 
     # execute views at least once
     for viewpath in views:
-        rows = newbucket.view(viewpath, stale="update_after")
+        newbucket.view(viewpath, stale="update_after")
 
 if __name__ == '__main__':
     main()
