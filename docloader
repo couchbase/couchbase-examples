@@ -7,7 +7,6 @@ import os
 import os.path
 import simplejson as json
 from tempfile import TemporaryFile
-import re
 from optparse import OptionParser
 
 from couchbase import client
@@ -65,10 +64,7 @@ class DocLoader:
                         views.append(viewpath)
 
     def gen_dockey(self, filename):
-        fileslashed = re.split(".json", filename)
-        fileinlist = re.split("/", fileslashed[0])
-        file_for_key = fileinlist.pop()
-        return file_for_key
+        return os.path.basename(filename).split('.')[0]
 
     def list_files(self, bucket, views, subdir=None):
         if not subdir:
