@@ -2,6 +2,7 @@
 # -*- python -*-
 
 import sys
+import time
 import zipfile
 import os
 import os.path
@@ -10,6 +11,7 @@ from tempfile import TemporaryFile
 from optparse import OptionParser
 
 from couchbase import client
+from couchbase.rest_client import RestConnection, RestHelper
 
 class DocLoader:
 
@@ -42,24 +44,38 @@ class DocLoader:
 
         print self.options, self.args
 
-    def save_doc(self, bucket, dockey, datafile, views):
+    def init_bucket(self):
+        server_info = {'ip': self.options.node.split(':')[0],
+                       'port': self.options.node.split(':')[1],
+                       'username': self.options.username,
+                       'password': self.options.password}
+
+        self.rest = RestConnection(server_info)
+
+        if not RestHelper(self.rest).bucket_exists(self.options.bucket):
+            self.rest.create_bucket(bucket=self.options.bucket,
+                                    ramQuotaMB=self.options.ram_quota,
+                                    authType='sasl')
+            time.sleep(10)
+
+    def save_doc(self, dockey, datafile):
         raw_data = datafile.read()
         try:
             doc = json.loads(raw_data)
             if '_id' not in doc:
-                bucket.set(dockey, 0, 0, raw_data)
+                self.bucket.set(dockey, 0, 0, raw_data)
             else:
                 doc['_id'] = doc['_id'].encode('UTF-8')
-                bucket.save(doc)
+                self.bucket.save(doc)
                 for view in doc.get('views', []):
-                    views.append(doc['_id'] + '/_view/' + view)
+                    self.views.append(doc['_id'] + '/_view/' + view)
         except ValueError, error:
             print error
 
     def gen_dockey(self, filename):
         return os.path.basename(filename).split('.')[0]
 
-    def list_files(self, bucket, views, subdir=None):
+    def list_files(self, subdir=None):
         if not subdir:
             subdir = self.args[0]
         subdirlist = list()
@@ -69,16 +85,16 @@ class DocLoader:
                     fp = open(os.path.join(subdir, item), 'r')
                     print "working with %s" % item
                     dockey = self.gen_dockey(item)
-                    self.save_doc(bucket, dockey, fp, views)
+                    self.save_doc(dockey, fp)
                     fp.close()
                 except IOError, error:
                     print error
             else:
                 subdirlist.append(os.path.join(subdir, item))
         for dir in subdirlist:
-            self.list_files(bucket, views, dir)
+            self.list_files(dir)
 
-    def unzip_file_and_upload(self, bucket, views):
+    def unzip_file_and_upload(self):
         zfobj = zipfile.ZipFile(self.args[0])
         for name in zfobj.namelist():
             if not name.endswith('/'):
@@ -87,35 +103,39 @@ class DocLoader:
                 temp_file = TemporaryFile()
                 temp_file.write(zfobj.read(name))
                 temp_file.seek(0)
-                self.save_doc(bucket, dockey, temp_file, views)
+                self.save_doc(dockey, temp_file)
                 temp_file.close()
 
-    def populate_docs(self, bucket, views):
+    def populate_docs(self):
+        cb = client.Server(self.options.node, self.options.username,
+                           self.options.password)
+
+        self.bucket = cb[self.options.bucket]
+        self.views = list()
+
         if self.args[0].endswith('.zip'):
-            self.unzip_file_and_upload(bucket, views)
+            self.unzip_file_and_upload()
         else:
-            self.list_files(bucket, views)
+            self.list_files()
+
+    def verify_queries(self):
+        for view in self.views:
+            self.bucket.view(view, stale="update_after")
 
 def main():
     docloader = DocLoader()
+
+    # parse options and arguments
     docloader.parse_args()
 
-    cb = client.Server(docloader.options.node, docloader.options.username,
-                       docloader.options.password)
-
-    try:
-        newbucket = cb.create(docloader.options.bucket, replica=1,
-                              ram_quota_mb=docloader.options.ram_quota)
-    except:
-        newbucket = cb[docloader.options.bucket]
+    # create new bucket if it doesn't exist
+    docloader.init_bucket()
 
     # upload documents
-    views = list()
-    docloader.populate_docs(newbucket, views)
+    docloader.populate_docs()
 
     # execute views at least once
-    for viewpath in views:
-        newbucket.view(viewpath, stale="update_after")
+    docloader.verify_queries()
 
 if __name__ == '__main__':
     main()
