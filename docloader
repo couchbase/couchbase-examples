@@ -6,7 +6,7 @@ import zipfile
 import os
 import os.path
 import simplejson as json
-import tempfile
+from tempfile import TemporaryFile
 import re
 from optparse import OptionParser
 
@@ -96,17 +96,11 @@ class DocLoader:
             if not name.endswith('/'):
                 print 'working with ', name
                 dockey = self.gen_dockey(name)
-                temp = tempfile.NamedTemporaryFile()
-                fname = temp.name
-                temp.write(zfobj.read(name))
-                temp.flush()
-                try:
-                    fp = open(fname, 'r')
-                    self.save_doc(bucket, dockey, fp, views)
-                    fp.close()
-                except IOError, error:
-                    print error
-                temp.close()
+                temp_file = TemporaryFile()
+                temp_file.write(zfobj.read(name))
+                temp_file.seek(0)
+                self.save_doc(bucket, dockey, temp_file, views)
+                temp_file.close()
 
     def populate_docs(self, bucket, views):
         if self.args[0].endswith('.zip'):
