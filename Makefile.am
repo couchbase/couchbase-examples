@@ -24,6 +24,6 @@ install-data-hook:
 	    mkdir -p "$(DESTDIR)$(localstatedatdir)"; \
 	fi
 	cp -rf $(COUCHBASE_PYTHON_LIB) $(pythonlibdir) && \
-	cp gamesim-sample.zip $(DESTDIR)$(localstatedatdir)
+	cp *.zip $(DESTDIR)$(localstatedatdir)
 
 
