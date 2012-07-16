@@ -107,8 +107,9 @@ class DocLoader:
                 temp_file.close()
 
     def populate_docs(self):
-        cb = client.Server(self.options.node, self.options.username,
-                           self.options.password)
+        cb = client.Couchbase(self.options.node,
+                              self.options.username,
+                              self.options.password)
 
         self.bucket = cb[self.options.bucket]
         self.views = list()
