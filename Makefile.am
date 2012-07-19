@@ -2,6 +2,8 @@ COUCHBASE_PYTHON_LIB = ../couchbase-python-client/couchbase
 
 default:
 
+bindir=$(DESTDIR)$(localbindir)
+
 pythonlibdir=$(libdir)/python
 
 pythonlib_SCRIPTS= cbdocloader
