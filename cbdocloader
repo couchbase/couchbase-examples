@@ -124,6 +124,12 @@ class DocLoader:
             self.bucket.view(view, stale="update_after")
 
 def main():
+    if os.name == 'nt':
+        mydir = os.path.dirname(sys.argv[0])
+        bin_dir = os.path.join(mydir, '..')
+        path = [mydir, bin_dir, os.environ['PATH']]
+        os.environ['PATH'] = ';'.join(path)
+
     docloader = DocLoader()
 
     # parse options and arguments
