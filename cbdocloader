@@ -79,6 +79,7 @@ class DocLoader:
         if not subdir:
             subdir = self.args[0]
         subdirlist = list()
+        viewdirs = list()
         for item in os.listdir(subdir):
             if os.path.isfile(os.path.join(subdir, item)):
                 try:
@@ -90,21 +91,33 @@ class DocLoader:
                 except IOError, error:
                     print error
             else:
-                subdirlist.append(os.path.join(subdir, item))
+                if item.find("design_docs") > 0:
+                    viewdirs.append(os.path.join(subdir, item))
+                else:
+                    subdirlist.append(os.path.join(subdir, item))
         for dir in subdirlist:
+            self.list_files(dir)
+        for dir in viewdirs:
             self.list_files(dir)
 
     def unzip_file_and_upload(self):
         zfobj = zipfile.ZipFile(self.args[0])
         for name in zfobj.namelist():
-            if not name.endswith('/'):
-                print 'working with %s' % name
-                dockey = self.gen_dockey(name)
-                temp_file = TemporaryFile()
-                temp_file.write(zfobj.read(name))
-                temp_file.seek(0)
-                self.save_doc(dockey, temp_file)
-                temp_file.close()
+            if not name.endswith('/') and name.find("design_docs") < 0:
+                self.upload_file(zfobj, name)
+        #upload design docs after all other docs
+        for name in zfobj.namelist():
+            if not name.endswith('/') and name.find("design_docs") >= 0:
+                self.upload_file(zfobj, name)
+
+    def upload_file(self, zfobj, name):
+        print 'working with %s' % name
+        dockey = self.gen_dockey(name)
+        temp_file = TemporaryFile()
+        temp_file.write(zfobj.read(name))
+        temp_file.seek(0)
+        self.save_doc(dockey, temp_file)
+        temp_file.close()
 
     def populate_docs(self):
         cb = client.Couchbase(self.options.node,
@@ -121,6 +134,7 @@ class DocLoader:
 
     def verify_queries(self):
         for view in self.views:
+            print "View:", view
             self.bucket.view(view, stale="update_after")
 
 def main():
