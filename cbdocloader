@@ -51,6 +51,21 @@ class DocLoader:
                        'password': self.options.password}
 
         self.rest = RestConnection(server_info)
+        uri = "http://%s:%s/nodes/self" % (server_info["ip"], server_info["port"])
+        status, content = self.rest._http_request(uri)
+        quotaUnused = -1
+        if status:
+            try:
+                json_parsed = json.loads(content)
+                quotaTotal = json_parsed["storageTotals"]["ram"]["quotaTotal"]
+                quotaUnused = quotaTotal - json_parsed["storageTotals"]["ram"]["quotaUsed"]
+            except:
+                pass
+        quotaUnused = quotaUnused / 1024.0
+        if quotaUnused > 0 and quotaUnused < self.options.ram_quota:
+            print "RAM quota specified is too large to be provisioned into this cluster"
+            print "Available RAM quota: %d, requested: %d" % (quotaUnused, self.options.ram_quota)
+            sys.exit()
 
         if not RestHelper(self.rest).bucket_exists(self.options.bucket):
             self.rest.create_bucket(bucket=self.options.bucket,
