@@ -23,15 +23,15 @@ class DocLoader:
 
         parser = OptionParser(usage)
 
-        username = os.environ.get('REST_USERNAME', 'Administrator')
-        password = os.environ.get('REST_PASSWORD', 'password')
+        username = os.environ.get('REST_USERNAME', None)
+        password = os.environ.get('REST_PASSWORD', None)
 
         parser.add_option('-u', dest='username', default=username,
                           help='Username', metavar='Administrator')
         parser.add_option('-p', dest='password', default=password,
                           help='Password', metavar='password')
-        parser.add_option('-b', dest='bucket', default='gamesim-sample',
-                          help='Bucket', metavar='gamesim-sample')
+        parser.add_option('-b', dest='bucket',
+                          help='Bucket', metavar='mybucket')
         parser.add_option('-n', dest='node', default='127.0.0.1:8091',
                           help='Node address', metavar='127.0.0.1:8091')
         parser.add_option('-s', dest='ram_quota', default=100, type='int',
@@ -39,7 +39,7 @@ class DocLoader:
 
         self.options, self.args = parser.parse_args()
 
-        if not self.args:
+        if not self.args or not self.options.bucket:
             parser.print_help()
             sys.exit()
 
