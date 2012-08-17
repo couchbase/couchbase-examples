@@ -6,6 +6,7 @@ import time
 import zipfile
 import os
 import os.path
+import shutil
 import simplejson as json
 from tempfile import TemporaryFile
 from optparse import OptionParser
@@ -117,22 +118,10 @@ class DocLoader:
 
     def unzip_file_and_upload(self):
         zfobj = zipfile.ZipFile(self.args[0])
-        for name in zfobj.namelist():
-            if not name.endswith('/') and name.find("design_docs") < 0:
-                self.upload_file(zfobj, name)
-        #upload design docs after all other docs
-        for name in zfobj.namelist():
-            if not name.endswith('/') and name.find("design_docs") >= 0:
-                self.upload_file(zfobj, name)
-
-    def upload_file(self, zfobj, name):
-        print 'working with %s' % name
-        dockey = self.gen_dockey(name)
-        temp_file = TemporaryFile()
-        temp_file.write(zfobj.read(name))
-        temp_file.seek(0)
-        self.save_doc(dockey, temp_file)
-        temp_file.close()
+        working_dir = os.path.join(os.path.dirname(sys.argv[0]), '_working')
+        zfobj.extractall(working_dir)
+        self.list_files(working_dir)
+        shutil.rmtree(working_dir)
 
     def populate_docs(self):
         cb = client.Couchbase(self.options.node,
