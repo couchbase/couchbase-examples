@@ -91,7 +91,7 @@ class DocLoader:
     def gen_dockey(self, filename):
         return os.path.basename(filename).split('.')[0]
 
-    def list_files(self, subdir=None):
+    def enumerate_and_save(self, subdir=None):
         if not subdir:
             subdir = self.args[0]
         subdirlist = list()
@@ -112,15 +112,15 @@ class DocLoader:
                 else:
                     subdirlist.append(os.path.join(subdir, item))
         for dir in subdirlist:
-            self.list_files(dir)
+            self.enumerate_and_save(dir)
         for dir in viewdirs:
-            self.list_files(dir)
+            self.enumerate_and_save(dir)
 
     def unzip_file_and_upload(self):
         zfobj = zipfile.ZipFile(self.args[0])
         working_dir = os.path.join(os.path.dirname(sys.argv[0]), '_working')
         zfobj.extractall(working_dir)
-        self.list_files(working_dir)
+        self.enumerate_and_save(working_dir)
         shutil.rmtree(working_dir)
 
     def populate_docs(self):
@@ -134,7 +134,7 @@ class DocLoader:
         if self.args[0].endswith('.zip'):
             self.unzip_file_and_upload()
         else:
-            self.list_files()
+            self.enumerate_and_save()
 
     def verify_queries(self):
         for view in self.views:
