@@ -8,7 +8,8 @@ import os
 import os.path
 import shutil
 import simplejson as json
-from tempfile import TemporaryFile
+import tempfile
+
 from optparse import OptionParser
 
 from couchbase import client
@@ -118,7 +119,11 @@ class DocLoader:
 
     def unzip_file_and_upload(self):
         zfobj = zipfile.ZipFile(self.args[0])
-        working_dir = os.path.join(os.path.dirname(sys.argv[0]), '_working')
+        tmpdir = tempfile.gettempdir()
+        working_dir = os.path.join(tmpdir, '_working')
+        if not os.path.exists(working_dir):
+            os.makedirs(working_dir)
+
         zfobj.extractall(working_dir)
         self.enumerate_and_save(working_dir)
         shutil.rmtree(working_dir)
