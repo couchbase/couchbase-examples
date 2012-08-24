@@ -134,12 +134,33 @@ class DocLoader:
                               self.options.password)
 
         self.bucket = cb[self.options.bucket]
+
+        #Retrieve and reset couchbase_api_base from server
+        self.bucket.server.couch_api_base = self.retrive_couch_api_base(cb)
+
         self.views = list()
 
         if self.args[0].endswith('.zip'):
             self.unzip_file_and_upload()
         else:
             self.enumerate_and_save()
+
+    def retrive_couch_api_base(self, cb):
+        if (':' in self.options.node):
+            ip, port = self.options.node.split(':')
+        else:
+            ip, port = self.options.node, 8091
+
+        server_config_uri = "http://%s:%s/pools/default/buckets/%s" % (ip, port, self.options.bucket)
+        config = client.ServerHelper.parse_server_config(server_config_uri,
+                                                         self.options.username,
+                                                         self.options.password)
+        couch_api_base = config["nodes"][0].get("couchApiBase")
+
+        #Remove bucket suffix because it is added when saving design docs
+        couch_api_base = "/".join(couch_api_base.split("/")[:-1]) + "/"
+
+        return couch_api_base
 
     def verify_queries(self):
         for view in self.views:
