@@ -147,7 +147,6 @@ class DocLoader:
             if os.path.isfile(os.path.join(subdir, item)):
                 try:
                     fp = open(os.path.join(subdir, item), 'r')
-                    print "working with %s" % item
                     dockey = self.gen_dockey(item)
                     self.save_doc(dockey, fp)
                     fp.close()
@@ -166,17 +165,14 @@ class DocLoader:
     def unzip_file_and_upload(self):
         zfobj = zipfile.ZipFile(self.args[0])
         tmpdir = tempfile.gettempdir()
-        working_dir = os.path.join(tmpdir, '_working')
-        if not os.path.exists(working_dir):
-            try:
-                os.makedirs(working_dir)
-            except:
-                print "Unexpected error:", sys.exc_info()[0]
-                return
-        if sys.version >= "2.6":
-            zfobj.extractall(working_dir)
-        else:
-            ZipUtil(zfobj).extractall(working_dir)
+        working_dir = os.path.join(tmpdir, '_cbdocloader_working')
+        try:
+            shutil.rmtree(working_dir)
+        except:
+            pass
+        os.makedirs(working_dir)
+
+        ZipUtil(zfobj).extractall(working_dir)
 
         self.enumerate_and_save(working_dir)
         shutil.rmtree(working_dir)
