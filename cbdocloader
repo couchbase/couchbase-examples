@@ -164,14 +164,8 @@ class DocLoader:
 
     def unzip_file_and_upload(self):
         zfobj = zipfile.ZipFile(self.args[0])
-        tmpdir = tempfile.gettempdir()
-        working_dir = os.path.join(tmpdir, '_cbdocloader_working')
-        try:
-            shutil.rmtree(working_dir)
-        except:
-            pass
-        os.makedirs(working_dir)
 
+        working_dir = tempfile.mkdtemp()
         ZipUtil(zfobj).extractall(working_dir)
 
         self.enumerate_and_save(working_dir)
@@ -236,6 +230,8 @@ def main():
 
     # execute views at least once
     docloader.verify_queries()
+
+    sys.stderr.write("done\n")
 
 if __name__ == '__main__':
     main()
