@@ -136,7 +136,7 @@ class DocLoader:
             print error
 
     def gen_dockey(self, filename):
-        return os.path.basename(filename).split('.')[0]
+        return os.path.splitext(os.path.basename(filename))[0]
 
     def enumerate_and_save(self, subdir=None):
         if not subdir:
