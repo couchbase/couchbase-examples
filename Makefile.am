@@ -1,4 +1,6 @@
-COUCHBASE_PYTHON_LIB = ../couchbase-python-client/couchbase
+COUCHBASE_PYTHON_LIB = ../couchbase-python-client/couchbase \
+                       ../couchbase-python-client/httplib2 \
+                       ../couchbase-python-client/simplejson
 
 default:
 
