@@ -1,6 +1,7 @@
 COUCHBASE_PYTHON_LIB = ../couchbase-python-client/couchbase \
                        ../couchbase-python-client/httplib2 \
-                       ../couchbase-python-client/simplejson
+                       ../couchbase-python-client/simplejson \
+                       ../couchbase-python-client/uuid.py
 
 default:
 
