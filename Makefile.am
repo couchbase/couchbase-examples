@@ -13,13 +13,15 @@ pythonlib_SCRIPTS= cbdocloader
 
 PYTHON_TOOLS= wrapper/cbdocloader
 
+sample_FILES= beer-sample.zip gamesim-sample.zip
+
 ${PYTHON_TOOLS}: wrapper/wrapper
 	cp $< $@
 
 CLEANFILES = ${PYTHON_TOOLS}
 bin_SCRIPTS = ${PYTHON_TOOLS}
 
-EXTRA_DIST = $(pythonlib_SCRIPTS)
+EXTRA_DIST = $(pythonlib_SCRIPTS) $(sample_FILES)
 
 install-data-hook:
 	if test ! "$(mkdir_p)" = ""; then \
