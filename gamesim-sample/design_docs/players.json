@@ -3,7 +3,7 @@
                 "language": "javascript",
                 "views": {
                      "leaderboard": {
-                     "map": "function (doc, meta) {\n  if (doc.jsonType == \"player\") {\n  emit(doc.experience, null);\n  }\n}"
+                     "map": "function (doc, meta) {\n  if (doc.jsonType == \"player\" && doc.experience) {\n  emit(doc.experience, null);\n  }\n}"
                      },
                      "playerlist": {
                      "map": "function (doc, meta) {\n  if (doc.jsonType == \"player\") {\n  emit(meta.id, null);\n  }\n}"
