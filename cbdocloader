@@ -90,7 +90,10 @@ class DocLoader:
             parser.print_help()
             sys.exit()
 
-        print self.options, self.args
+        # check if the uploaded file exists
+        if not os.path.exists(self.args[0]):
+            print "Invalid path: %s" % self.args[0]
+            sys.exit()
 
     def init_bucket(self):
         server_info = {'ip': self.options.node.split(':')[0],
