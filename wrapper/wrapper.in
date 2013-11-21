@@ -1,12 +1,10 @@
 #! /bin/sh
-prefix=@prefix@
-exec_prefix=@exec_prefix@
-root=@libdir@/python
+root=${CMAKE_INSTALL_PREFIX}/lib/python
 
-if test -z "${PYTHONPATH}"; then
-   PYTHONPATH=$root
+if test -z "$PYTHONPATH"; then
+   PYTHONPATH="$root"
 else
-   PYTHONPATH=$root:${PYTHONPATH}
+   PYTHONPATH="$root:$PYTHONPATH"
 fi
 export PYTHONPATH
 exec "$root"/`basename "$0"` "$@"
