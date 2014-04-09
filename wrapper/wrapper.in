@@ -1,10 +1,5 @@
 #! /bin/sh
-
-CWD="`pwd`"
-D0="`dirname "$0"`"
-cd $D0/../lib/python
-root="`pwd`"
-cd "$CWD"
+root=${CMAKE_INSTALL_PREFIX}/lib/python
 
 if test -z "$PYTHONPATH"; then
    PYTHONPATH="$root"
