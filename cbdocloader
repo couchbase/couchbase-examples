@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # -*- python -*-
 
+import pump
+import pump_transfer
+import pump_json
+
 import sys
 import time
 import zipfile
@@ -61,9 +65,9 @@ class ZipUtil:
 
         return path
 
-class DocLoader:
+class DocLoader(pump_transfer.Transfer):
 
-    def parse_args(self):
+    def parse_args(self, argv):
         usage = "usage: %prog [options] <directory>|zipfile\n\n" + \
                 "Example: %prog -u Administrator -p password -n 127.0.0.1:8091 " + \
                 "-b mybucket -s 100 gamesim-sample.zip"
@@ -84,8 +88,7 @@ class DocLoader:
         parser.add_option('-s', dest='ram_quota', default=100, type='int',
                           help='RAM quota in MB', metavar=100)
 
-        self.options, self.args = parser.parse_args()
-
+        self.options, self.args = parser.parse_args(argv[1:])
         if not self.args or not self.options.bucket:
             parser.print_help()
             sys.exit()
@@ -95,43 +98,110 @@ class DocLoader:
             print "Invalid path: %s" % self.args[0]
             sys.exit()
 
+    def opt_construct(self, argv):
+        sink_opts = {"node" : "http://"}
+        common_opts = {"bucket" : ["-B", None],
+                       "username" : ["-u", None],
+                       "password" : ["-p", None],
+                      }
+        count_opts = {"verbose" : ["-v", None]}
+
+        # parse options and arguments
+        self.parse_args(argv)
+
+        gen_str = "json://" + self.args[0]
+        sink_str = ""
+        for key in sink_opts.iterkeys():
+            val = getattr(self.options, key, None)
+            if val:
+                sink_str += sink_opts[key] + val
+
+        for key in common_opts.iterkeys():
+            val = getattr(self.options, key, None)
+            if val:
+                common_opts[key][1] = str(val)
+
+        for key in count_opts.iterkeys():
+            val = getattr(self.options, key, None)
+            if val:
+                count_opts[key][1] = int(val)
+
+        return gen_str, sink_str, common_opts, count_opts
+
     def init_bucket(self):
         server_info = {'ip': self.options.node.split(':')[0],
                        'port': self.options.node.split(':')[1],
                        'username': self.options.username,
                        'password': self.options.password}
 
-        rest = RestConnection(server_info)
+        self.rest = RestConnection(server_info)
+        uri = "http://%s:%s/nodes/self" % (server_info["ip"], server_info["port"])
+        status, content = self.rest._http_request(uri)
+        quotaUnused = -1
+        if status:
+            try:
+                json_parsed = json.loads(content)
+                quotaTotal = json_parsed["storageTotals"]["ram"]["quotaTotal"]
+                quotaUnused = quotaTotal - json_parsed["storageTotals"]["ram"]["quotaUsed"]
+            except:
+                pass
+        quotaUnused = quotaUnused / 1024.0
+        if quotaUnused > 0 and quotaUnused < self.options.ram_quota:
+            print "RAM quota specified is too large to be provisioned into this cluster"
+            print "Available RAM quota: %d, requested: %d" % (quotaUnused, self.options.ram_quota)
+            sys.exit()
+        if not RestHelper(self.rest).bucket_exists(self.options.bucket):
+            self.rest.create_bucket(bucket=self.options.bucket,
+                                    ramQuotaMB=self.options.ram_quota,
+                                    authType='sasl')
+            timeout_in_seconds = 120
+            start = time.time()
+            # Make sure the bucket exists before querying its status
+            bucket_exist = False
+            while (time.time() - start) <= timeout_in_seconds and not bucket_exist:
+                bucket_exist = RestHelper(self.rest).bucket_exists(self.options.bucket)
+                if bucket_exist:
+                    break
+                else:
+                    sys.stderr.write(".")
+                    time.sleep(2)
 
-        if not RestHelper(rest).bucket_exists(self.options.bucket):
-            uri = "http://%s:%s/nodes/self" % (server_info["ip"], server_info["port"])
-            status, content = rest._http_request(uri)
-            quotaUnused = -1
-            if status:
-                try:
-                    json_parsed = json.loads(content)
-                    quotaTotal = json_parsed["storageTotals"]["ram"]["quotaTotal"]
-                    quotaUnused = quotaTotal - json_parsed["storageTotals"]["ram"]["quotaUsed"]
-                except:
-                    pass
-            quotaUnused = quotaUnused / 1024.0
-            if quotaUnused > 0 and quotaUnused < self.options.ram_quota:
-                print "RAM quota specified is too large to be provisioned into this cluster"
-                print "Available RAM quota: %d, requested: %d" % (quotaUnused, self.options.ram_quota)
+            if not bucket_exist:
+                print "\nFail to create bucket '%s' within %s seconds" %\
+                      (self.options.bucket, timeout_in_seconds)
                 sys.exit()
 
-            rest.create_bucket(bucket=self.options.bucket,
-                               ramQuotaMB=self.options.ram_quota,
-                               authType='sasl')
-            time.sleep(10)
+            #Query status for all bucket nodes
+            uri = "http://%s:%s/pools/default/buckets/%s" % \
+                    (server_info["ip"], server_info["port"], self.options.bucket)
+            all_node_ready = False
+            while (time.time() - start) <= timeout_in_seconds and not all_node_ready:
+                status, content = self.rest._http_request(uri)
+                try:
+                    json_data = json.loads(content)
+                    all_node_ready = True
+                    for node in json_data["nodes"]:
+                        if node["status"] != "healthy":
+                            all_node_ready = False
+                            break
+                    if not all_node_ready:
+                        sys.stderr.write(".")
+                        time.sleep(2)
+                except Exception, err:
+                    print "Exception:", err
+                    break
+            if not all_node_ready:
+                print "\nNode status is not ready after creating bucket '%s' within %s seconds" %\
+                      (self.options.bucket, timeout_in_seconds)
+                sys.exit()
+            else:
+                print "bucket creation is successful"
 
     def save_doc(self, dockey, datafile):
         raw_data = datafile.read()
         try:
             doc = json.loads(raw_data)
-            if '_id' not in doc:
-                self.bucket.set(dockey, 0, 0, raw_data)
-            else:
+            if '_id' in doc:
                 doc['_id'] = doc['_id'].encode('UTF-8')
                 self.bucket.save(doc)
                 for view in doc.get('views', []):
@@ -211,32 +281,46 @@ class DocLoader:
 
     def verify_queries(self):
         for view in self.views:
-            print "View:", view
             self.bucket.view(view, stale="update_after")
 
-def main():
+    def find_handlers(self, opts, source, sink):
+        return pump_json.JSONSource, pump.PumpingStation.find_handler(opts, sink, pump_transfer.SINKS)
+
+    def main(self, argv):
+
+        src, sink, common_opts, count_opts = self.opt_construct(argv)
+        local_args = [argv[0]]
+        local_args.append(src)
+        local_args.append(sink)
+        for v in common_opts.itervalues():
+            local_args.append(v[0])
+            local_args.append(v[1])
+
+        for v in count_opts.itervalues():
+            if v[1] is not None:
+                for i in range(v[1]):
+                    local_args.append(v[0])
+        print local_args
+
+        # create new bucket if it doesn't exist
+        self.init_bucket()
+
+        #use cbtransfer to upload documents
+        pump_transfer.Transfer.main(self, local_args)
+
+        #upload documents
+        self.populate_docs()
+
+        # execute views at least once
+        self.verify_queries()
+
+        #sys.stderr.write("done\n")
+
+if __name__ == '__main__':
     if os.name == 'nt':
         mydir = os.path.dirname(sys.argv[0])
         bin_dir = os.path.join(mydir, '..')
         path = [mydir, bin_dir, os.environ['PATH']]
         os.environ['PATH'] = ';'.join(path)
 
-    docloader = DocLoader()
-
-    # parse options and arguments
-    docloader.parse_args()
-
-    # create new bucket if it doesn't exist
-    docloader.init_bucket()
-
-    # upload documents
-    docloader.populate_docs()
-
-    # execute views at least once
-    docloader.verify_queries()
-
-    sys.stderr.write("done\n")
-
-if __name__ == '__main__':
-    main()
-    os._exit(0)
+    pump_transfer.exit_handler(DocLoader().main(sys.argv))
