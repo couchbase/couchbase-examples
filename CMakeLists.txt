@@ -7,7 +7,7 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
 
 INSTALL(PROGRAMS
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbdocloader
-        DESTINATION bin/tools)
+        DESTINATION bin)
 
 INSTALL(PROGRAMS
         cbdocloader
