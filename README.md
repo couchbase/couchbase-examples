@@ -59,3 +59,21 @@ These are kinds of error cases to consider ...
 * JSON files are not well formatted
 * Wrong REST username and password
 * Bucket cannot be created due to too large ram quota specified.
+
+Licenses
+--------
+
+### Beer sample
+
+To quote from the original [Open Beer Database](http://openbeerdb.com/):
+
+    This Open Beer Database is made available under the Open Database License:
+    http://opendatacommons.org/licenses/odbl/1.0/. Any rights in individual
+    contents of the database are licensed under the Database Contents License:
+    http://opendatacommons.org/licenses/dbcl/1.0/
+
+The data was converted to JSON with the [scripts from Sergey Avseyev](https://github.com/avsej/beer-sample).
+
+### Gamesim sample
+
+The gamesim sample is licensed under the Apache License 2.0.
