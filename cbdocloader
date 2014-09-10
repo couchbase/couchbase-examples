@@ -74,8 +74,8 @@ class DocLoader(pump_transfer.Transfer):
 
         parser = OptionParser(usage)
 
-        username = os.environ.get('REST_USERNAME', None)
-        password = os.environ.get('REST_PASSWORD', None)
+        username = os.environ.get('BUCKET_USERNAME', "")
+        password = os.environ.get('BUCKET_PASSWORD', "")
 
         parser.add_option('-u', dest='username', default=username,
                           help='Username', metavar='Administrator')
@@ -91,12 +91,12 @@ class DocLoader(pump_transfer.Transfer):
         self.options, self.args = parser.parse_args(argv[1:])
         if not self.args or not self.options.bucket:
             parser.print_help()
-            sys.exit()
+            sys.exit(1)
 
         # check if the uploaded file exists
         if not os.path.exists(self.args[0]):
-            print "Invalid path: %s" % self.args[0]
-            sys.exit()
+            sys.stderr.write("Invalid path: %s\n" % self.args[0])
+            sys.exit(1)
 
     def opt_construct(self, argv):
         sink_opts = {"node" : "http://"}
@@ -135,67 +135,72 @@ class DocLoader(pump_transfer.Transfer):
                        'password': self.options.password}
 
         self.rest = RestConnection(server_info)
-        uri = "http://%s:%s/nodes/self" % (server_info["ip"], server_info["port"])
-        status, content = self.rest._http_request(uri)
-        quotaUnused = -1
-        if status:
-            try:
-                json_parsed = json.loads(content)
-                quotaTotal = json_parsed["storageTotals"]["ram"]["quotaTotal"]
-                quotaUnused = quotaTotal - json_parsed["storageTotals"]["ram"]["quotaUsed"]
-            except:
-                pass
-        quotaUnused = quotaUnused / 1024.0
-        if quotaUnused > 0 and quotaUnused < self.options.ram_quota:
-            print "RAM quota specified is too large to be provisioned into this cluster"
-            print "Available RAM quota: %d, requested: %d" % (quotaUnused, self.options.ram_quota)
-            sys.exit()
-        if not RestHelper(self.rest).bucket_exists(self.options.bucket):
-            self.rest.create_bucket(bucket=self.options.bucket,
-                                    ramQuotaMB=self.options.ram_quota,
-                                    authType='sasl')
-            timeout_in_seconds = 120
-            start = time.time()
-            # Make sure the bucket exists before querying its status
-            bucket_exist = False
-            while (time.time() - start) <= timeout_in_seconds and not bucket_exist:
-                bucket_exist = RestHelper(self.rest).bucket_exists(self.options.bucket)
-                if bucket_exist:
-                    break
-                else:
-                    sys.stderr.write(".")
-                    time.sleep(2)
-
-            if not bucket_exist:
-                print "\nFail to create bucket '%s' within %s seconds" %\
-                      (self.options.bucket, timeout_in_seconds)
-                sys.exit()
-
-            #Query status for all bucket nodes
-            uri = "http://%s:%s/pools/default/buckets/%s" % \
-                    (server_info["ip"], server_info["port"], self.options.bucket)
-            all_node_ready = False
-            while (time.time() - start) <= timeout_in_seconds and not all_node_ready:
-                status, content = self.rest._http_request(uri)
+        timeout_in_seconds = 120
+        if self.options.password:
+            uri = "http://%s:%s/nodes/self" % (server_info["ip"], server_info["port"])
+            status, content = self.rest._http_request(uri)
+            quotaUnused = -1
+            if status:
                 try:
-                    json_data = json.loads(content)
-                    all_node_ready = True
-                    for node in json_data["nodes"]:
-                        if node["status"] != "healthy":
-                            all_node_ready = False
-                            break
-                    if not all_node_ready:
+                    json_parsed = json.loads(content)
+                    quotaTotal = json_parsed["storageTotals"]["ram"]["quotaTotal"]
+                    quotaUnused = quotaTotal - json_parsed["storageTotals"]["ram"]["quotaUsed"]
+                except:
+                    pass
+            quotaUnused = quotaUnused / 1024.0
+            if quotaUnused > 0 and quotaUnused < self.options.ram_quota:
+                sys.stderr.write("RAM quota specified is too large to be provisioned into this cluster\n")
+                sys.stderr.write("Available RAM quota: %d, requested: %d\n" %\
+                    (quotaUnused, self.options.ram_quota))
+                sys.exit(1)
+            if not RestHelper(self.rest).bucket_exists(self.options.bucket):
+                self.rest.create_bucket(bucket=self.options.bucket,
+                                        ramQuotaMB=self.options.ram_quota,
+                                        authType='sasl')
+
+                start = time.time()
+                # Make sure the bucket exists before querying its status
+                bucket_exist = False
+                while (time.time() - start) <= timeout_in_seconds and not bucket_exist:
+                    bucket_exist = RestHelper(self.rest).bucket_exists(self.options.bucket)
+                    if bucket_exist:
+                        break
+                    else:
                         sys.stderr.write(".")
                         time.sleep(2)
-                except Exception, err:
-                    print "Exception:", err
-                    break
-            if not all_node_ready:
-                print "\nNode status is not ready after creating bucket '%s' within %s seconds" %\
-                      (self.options.bucket, timeout_in_seconds)
-                sys.exit()
-            else:
-                print "bucket creation is successful"
+
+                if not bucket_exist:
+                    sys.stderr.write("Fail to create bucket '%s' within %s seconds\n" %\
+                          (self.options.bucket, timeout_in_seconds))
+                    sys.exit(1)
+
+        self.rest = RestConnection(server_info)
+        #Query status for all bucket nodes
+        uri = "http://%s:%s/pools/default/buckets/%s" % \
+            (server_info["ip"], server_info["port"], self.options.bucket)
+        all_node_ready = False
+        start = time.time()
+        while (time.time() - start) <= timeout_in_seconds and not all_node_ready:
+            status, content = self.rest._http_request(uri)
+            try:
+                json_data = json.loads(content)
+                all_node_ready = True
+                for node in json_data["nodes"]:
+                    if node["status"] != "healthy":
+                        all_node_ready = False
+                        break
+                if not all_node_ready:
+                    sys.stderr.write(".")
+                    time.sleep(2)
+            except Exception, err:
+                print "Exception:", err
+                break
+        if not all_node_ready:
+            sys.stderr.write("\nNode status is not ready after creating bucket '%s' within %s seconds" %\
+                  (self.options.bucket, timeout_in_seconds))
+            sys.exit(1)
+        else:
+            print "bucket creation is successful"
 
     def save_doc(self, dockey, datafile):
         raw_data = datafile.read()
@@ -300,7 +305,6 @@ class DocLoader(pump_transfer.Transfer):
             if v[1] is not None:
                 for i in range(v[1]):
                     local_args.append(v[0])
-        print local_args
 
         # create new bucket if it doesn't exist
         self.init_bucket()
@@ -313,8 +317,6 @@ class DocLoader(pump_transfer.Transfer):
 
         # execute views at least once
         self.verify_queries()
-
-        #sys.stderr.write("done\n")
 
 if __name__ == '__main__':
     if os.name == 'nt':
