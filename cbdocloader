@@ -4,6 +4,7 @@
 import pump
 import pump_transfer
 import pump_json
+import util_cli as util
 
 import sys
 import time
@@ -129,8 +130,9 @@ class DocLoader(pump_transfer.Transfer):
         return gen_str, sink_str, common_opts, count_opts
 
     def init_bucket(self):
-        server_info = {'ip': self.options.node.split(':')[0],
-                       'port': self.options.node.split(':')[1],
+        host, port= util.hostport(self.options.node)
+        server_info = {'ip': host,
+                       'port': port,
                        'username': self.options.username,
                        'password': self.options.password}
 
