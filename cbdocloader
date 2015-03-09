@@ -266,7 +266,7 @@ class DocLoader(pump_transfer.Transfer):
 
         if self.args[0].endswith('.zip'):
             self.unzip_file_and_upload()
-        else:
+        elif os.path.isdir(self.args[0]):
             self.enumerate_and_save()
 
     def retrive_couch_api_base(self, cb):
