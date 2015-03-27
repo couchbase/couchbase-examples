@@ -77,3 +77,11 @@ The data was converted to JSON with the [scripts from Sergey Avseyev](https://gi
 ### Gamesim sample
 
 The gamesim sample is licensed under the Apache License 2.0.
+
+### Travel sample
+
+Landmarks converted to JSON from CSV dump of [english version of wikivoyage][wikivoyage].
+Licensed under [Creative Commons Attribution Share-Alike][cc-by-sa].
+
+[wikivoyage]: http://datahub.io/dataset/wikivoyage-listings-as-csv
+[cc-by-sa]: http://opendefinition.org/licenses/cc-by-sa/

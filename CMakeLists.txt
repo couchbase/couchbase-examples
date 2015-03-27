@@ -16,4 +16,5 @@ INSTALL(PROGRAMS
 INSTALL(FILES
         beer-sample.zip
         gamesim-sample.zip
+        travel-sample.zip
         DESTINATION samples)
