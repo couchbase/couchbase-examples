@@ -315,10 +315,10 @@ class DocLoader(pump_transfer.Transfer):
         pump_transfer.Transfer.main(self, local_args)
 
         #upload documents
-        self.populate_docs()
+        #self.populate_docs()
 
         # execute views at least once
-        self.verify_queries()
+        #self.verify_queries()
 
 if __name__ == '__main__':
     if os.name == 'nt':
