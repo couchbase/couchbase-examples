@@ -8,63 +8,15 @@ import util_cli as util
 
 import sys
 import time
-import zipfile
 import os
 import os.path
 import shutil
 import simplejson as json
-import tempfile
 
 from optparse import OptionParser
 
 from couchbase import client
 from couchbase.rest_client import RestConnection, RestHelper
-
-class ZipUtil:
-    def __init__(self, zipobj):
-        self.zipobj = zipobj
-
-    def extractall(self, path=None):
-        if path is None:
-            path = os.getcwd()
-        if (path[-1] in (os.path.sep, os.path.altsep)
-            and len(os.path.splitdrive(path)[1]) > 1):
-            path = path[:-1]
-
-        for member in self.zipobj.namelist():
-            if not isinstance(member, zipfile.ZipInfo):
-                member = self.zipobj.getinfo(member)
-
-            # don't include leading "/" from file name if present
-            if member.filename[0] == '/':
-                targetpath = os.path.join(path, member.filename[1:])
-            else:
-                targetpath = os.path.join(path, member.filename)
-
-            targetpath = os.path.normpath(targetpath)
-
-            # Create all parent directories if necessary.
-            upperdirs = os.path.dirname(targetpath)
-            if upperdirs and not os.path.exists(upperdirs):
-                try:
-                    os.makedirs(upperdirs)
-                except:
-                    print "Unexpected error:", sys.exc_info()[0]
-                    return upperdirs
-
-            if member.filename[-1] == '/':
-                if not os.path.isdir(targetpath):
-                    try:
-                        os.mkdir(targetpath)
-                    except:
-                        print "Fail to create directory:", targetpath
-                continue
-
-            target = file(targetpath, "wb")
-            target.write(self.zipobj.read(member.filename))
-            target.close()
-
-        return path
 
 class DocLoader(pump_transfer.Transfer):
 
@@ -204,92 +156,6 @@ class DocLoader(pump_transfer.Transfer):
         else:
             print "bucket creation is successful"
 
-    def save_doc(self, dockey, datafile):
-        raw_data = datafile.read()
-        try:
-            doc = json.loads(raw_data)
-            if '_id' in doc:
-                doc['_id'] = doc['_id'].encode('UTF-8')
-                self.bucket.save(doc)
-                for view in doc.get('views', []):
-                    self.views.append(doc['_id'] + '/_view/' + view)
-        except ValueError, error:
-            print error
-
-    def gen_dockey(self, filename):
-        return os.path.splitext(os.path.basename(filename))[0]
-
-    def enumerate_and_save(self, subdir=None):
-        if not subdir:
-            subdir = self.args[0]
-        subdirlist = list()
-        viewdirs = list()
-        for item in os.listdir(subdir):
-            if os.path.isfile(os.path.join(subdir, item)):
-                try:
-                    fp = open(os.path.join(subdir, item), 'r')
-                    dockey = self.gen_dockey(item)
-                    self.save_doc(dockey, fp)
-                    fp.close()
-                except IOError, error:
-                    print error
-            else:
-                if item.find("design_docs") > 0:
-                    viewdirs.append(os.path.join(subdir, item))
-                else:
-                    subdirlist.append(os.path.join(subdir, item))
-        for dir in subdirlist:
-            self.enumerate_and_save(dir)
-        for dir in viewdirs:
-            self.enumerate_and_save(dir)
-
-    def unzip_file_and_upload(self):
-        zfobj = zipfile.ZipFile(self.args[0])
-
-        working_dir = tempfile.mkdtemp()
-        ZipUtil(zfobj).extractall(working_dir)
-
-        self.enumerate_and_save(working_dir)
-        shutil.rmtree(working_dir)
-
-    def populate_docs(self):
-        cb = client.Couchbase(self.options.node,
-                              self.options.username,
-                              self.options.password)
-
-        self.bucket = cb[self.options.bucket]
-
-        #Retrieve and reset couchbase_api_base from server
-        self.bucket.server.couch_api_base = self.retrive_couch_api_base(cb)
-
-        self.views = list()
-
-        if self.args[0].endswith('.zip'):
-            self.unzip_file_and_upload()
-        elif os.path.isdir(self.args[0]):
-            self.enumerate_and_save()
-
-    def retrive_couch_api_base(self, cb):
-        if (':' in self.options.node):
-            ip, port = self.options.node.split(':')
-        else:
-            ip, port = self.options.node, 8091
-
-        server_config_uri = "http://%s:%s/pools/default/buckets/%s" % (ip, port, self.options.bucket)
-        config = client.ServerHelper.parse_server_config(server_config_uri,
-                                                         self.options.username,
-                                                         self.options.password)
-        couch_api_base = config["nodes"][0].get("couchApiBase")
-
-        #Remove bucket suffix because it is added when saving design docs
-        couch_api_base = "/".join(couch_api_base.split("/")[:-1]) + "/"
-
-        return couch_api_base
-
-    def verify_queries(self):
-        for view in self.views:
-            self.bucket.view(view, stale="update_after")
-
     def find_handlers(self, opts, source, sink):
         return pump_json.JSONSource, pump.PumpingStation.find_handler(opts, sink, pump_transfer.SINKS)
 
@@ -313,12 +179,6 @@ class DocLoader(pump_transfer.Transfer):
 
         #use cbtransfer to upload documents
         pump_transfer.Transfer.main(self, local_args)
-
-        #upload documents
-        #self.populate_docs()
-
-        # execute views at least once
-        #self.verify_queries()
 
 if __name__ == '__main__':
     if os.name == 'nt':
