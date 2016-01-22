@@ -40,6 +40,7 @@ class DocLoader(pump_transfer.Transfer):
                           help='Node address', metavar='127.0.0.1:8091')
         parser.add_option('-s', dest='ram_quota', default=100, type='int',
                           help='RAM quota in MB', metavar=100)
+        parser.add_option("-v", dest='verbose', action="count")
 
         self.options, self.args = parser.parse_args(argv[1:])
         if not self.args or not self.options.bucket:
