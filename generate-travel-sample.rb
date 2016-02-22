@@ -4,7 +4,7 @@
 #
 # Dependencies:
 # * redis and rubygem 'redis' to cache responses for geocoder APIs
-# * rubygem geocoder to resolve country, city and state using geo coordinates 
+# * rubygem geocoder to resolve country, city and state using geo coordinates
 #
 # To install dependencies, use the following commands:
 #
@@ -49,7 +49,9 @@ require 'geocoder'
 # by default it is using yandex maps because it allows 25k requests
 # per day, but for some landmarks it is necessary to switch to google,
 # because they are missing on yandex maps
-Geocoder.configure(cache: CACHE, timeout: 5, units: :km)
+Geocoder.configure(cache: CACHE, timeout: 10, units: :km,
+                   # http_proxy: '127.0.0.1:3128',
+                   always_raise: [Geocoder::OverQueryLimitError])
 
 begin
   gem 'nokogiri'
@@ -57,6 +59,28 @@ rescue LoadError => ex
   abort "#{ex}.\nUse 'gem install nokogiri' to install it"
 end
 require 'nokogiri'
+
+begin
+  gem 'cld'
+rescue LoadError => ex
+  abort "#{ex}.\nUse 'gem install cld' to install it"
+end
+require 'cld'
+
+begin
+  gem 'ffaker'
+rescue LoadError => ex
+  abort "#{ex}.\nUse 'gem install ffaker' to install it"
+end
+require 'ffaker'
+
+require 'yaml'
+begin
+  gem 'obscenity'
+rescue LoadError => ex
+  abort "#{ex}.\nUse 'gem install obscenity' to install it"
+end
+require 'obscenity'
 
 require 'csv'
 require 'json'
@@ -67,6 +91,8 @@ require 'digest/sha1'
 require 'shellwords'
 
 include FileUtils
+
+rm_rf('failed.geo.txt')
 
 def blank?(value)
   value.nil? || (value.is_a?(String) && value.strip.empty?)
@@ -81,6 +107,51 @@ def nullify_blank_keys(doc)
     end
   end
 end
+
+def random_date(from = Time.new(2012, 1, 1), to = Time.new(2016, 1, 1))
+  Time.at(rand(from.to_i..to.to_i))
+end
+
+reviews_url = 'http://times.cs.uiuc.edu/~wang296/Data/LARA/TripAdvisor/TripAdvisorJson.tar.bz2'
+reviews_file = File.basename(reviews_url)
+unless File.exist?(reviews_file)
+  puts("downloading #{reviews_url} to #{reviews_file}...")
+  system("curl -O #{reviews_url}")
+end
+unless File.directory?('json')
+  puts("uncompressing #{reviews_file}...")
+  system("tar jxf #{reviews_file}")
+end
+# load first 200k reviews in english
+reviews = []
+if File.exist?('reviews-filtered.tar')
+  system('tar xf reviews-filtered.tar')
+  Dir['reviews-filtered/**/*.json'].sort.each do |review|
+    reviews.push(JSON.load(File.read(review)))
+  end
+else
+  Dir['json/*.json'].sort.each do |hotel|
+    raw = JSON.load(File.read(hotel))
+    raw['Reviews'].each do |r|
+      lang = CLD.detect_language(r['Content'])
+      if lang[:reliable] && lang[:code] == 'en'
+        ratings = r['Ratings']
+        ratings.each do |k, v|
+          ratings[k] = v.to_f
+        end
+        review = {
+          content: Obscenity.sanitize(r['Content']),
+          ratings: ratings,
+          author: FFaker::Name.name,
+          date: random_date
+        }
+        reviews.push(review)
+      end
+    end if raw.key?('Reviews')
+    break unless reviews.size < 200_000
+  end
+end
+reviews.shuffle
 
 wikivoyage_url = 'https://ckannet-storage.commondatastorage.googleapis.com/2015-01-06T06:01:38.068Z/enwikivoyage-20141226-pages-articles-xml.csv'
 wikivoyage_file = ARGV[0] || 'enwikivoyage-20141226-pages-articles-xml.csv'
@@ -119,13 +190,14 @@ mkdir_p('travel-sample/docs')
 csv = CSV.open(wikivoyage_file, headers: true, col_sep: ';', header_converters: :downcase)
 idx = 0
 missing_on_yandex_maps = [
-  9034, 15484, 15485, 15486, 17360, 17361, 17362, 17363,
-  17364, 17365, 17366, 17367, 17368, 17369, 40385
+  9034, 15_484, 15_485, 15_486, 17_360, 17_361, 17_362, 17_363,
+  17_364, 17_365, 17_366, 17_367, 17_368, 17_369, 40_385
 ]
 swapped_coordinates = [
-  634, 3495, 33129
+  634, 3495, 33_129
 ]
 chosen_countries = ['United States', 'France', 'United Kingdom']
+hotels = []
 csv.each do |row|
   Geocoder.configure(lookup: :yandex)
   key = "landmark_#{idx}"
@@ -133,17 +205,53 @@ csv.each do |row|
   lat = doc.delete('lat').to_f
   lon = doc.delete('lon').to_f
   next if lat == 0 || lon == 0 || blank?(doc['name']) || blank?(doc['content'])
-  doc['geo'] = {lat: lat, lon: lon}
+  doc['geo'] = {lat: lat, lon: lon, accuracy: ['ROOFTOP', 'RANGE_INTERPOLATED', 'APPROXIMATE'].sample}
   doc['activity'] = doc.delete('type')
   doc['type'] = 'landmark'
   doc['id'] = idx
-  if swapped_coordinates.include?(doc['id'])
-    doc['geo'] = {lat: lon, lon: lat}
-  end
+  doc['geo'] = {lat: lon, lon: lat} if swapped_coordinates.include?(doc['id'])
   if missing_on_yandex_maps.include?(doc['id'])
     Geocoder.configure(lookup: :google)
   end
-  geo = Geocoder.search(doc['geo'].values_at(:lat, :lon).join(','))
+  t = 0
+  geo = begin
+          Geocoder.search(doc['geo'].values_at(:lat, :lon).join(','))
+        rescue Geocoder::OverQueryLimitError
+          sleep 2 + t
+          STDERR.print '.'
+          t += 1
+          if t > 10
+            STDERR.puts('timeout')
+            File.open('failed.geo.txt', 'a+') do |f|
+              f.puts("Geocoder.search(#{doc['geo'].values_at(:lat, :lon).join(',').inspect})")
+              f.puts(doc.inspect)
+              f.puts
+            end
+          else
+            retry
+          end
+        end
+  if geo.empty?
+    Geocoder.configure(lookup: :google)
+    t = 0
+    begin
+      geo = Geocoder.search(doc['geo'].values_at(:lat, :lon).join(','))
+    rescue Geocoder::OverQueryLimitError
+      sleep 2 + t
+      STDERR.print '.'
+      t += 1
+      if t > 10
+        STDERR.puts('timeout')
+        File.open('failed.geo.txt', 'a+') do |f|
+          f.puts("Geocoder.search(#{doc['geo'].values_at(:lat, :lon).join(',').inspect})")
+          f.puts(doc.inspect)
+          f.puts
+        end
+      else
+        retry
+      end
+    end
+  end
   if geo && geo = geo.first
     doc['country'] = geo.country
     doc['country'] = 'United Kingdom' if doc['country'] =~ /^United Kingdom/
@@ -172,6 +280,14 @@ csv.each do |row|
         abort "#{doc['image']}: #{ex}"
       end
     end
+  end
+  if doc['activity'] == 'sleep'
+    key = "hotel_#{idx}"
+    doc['type'] = 'hotel'
+    doc.delete('activity')
+    doc['reviews'] = reviews.shift(rand(10))
+    doc['public_likes'] = Array.new(rand(10)) { FFaker::Name.name }
+    doc['vacancy'] = [true, false].sample
   end
   File.write("travel/docs/#{key}.json", doc.to_json)
   if doc['country'] == 'United Kingdom' || doc['country'] == 'France' ||
@@ -226,7 +342,7 @@ File.open(air_file) do |input|
     if doc.key?('icao') && (blank?(doc['icao']) || doc['icao'] == 'N' || doc['icao'] == '...')
       doc['icao'] = nil
     end
-    if active == 'N' || doc['id'] == 18860 ||
+    if active == 'N' || doc['id'] == 18_860 ||
        ( # skip airports or airlines without sensible codes
          (doc.key?('faa') || doc.key?('icao')) &&
          blank?(doc['faa']) && blank?(doc['icao'])
@@ -389,7 +505,7 @@ JS
 n1ql_indexes = {
   statements: [
     {
-      statement: "CREATE PRIMARY INDEX def_primary on `travel-sample` USING GSI",
+      statement: 'CREATE PRIMARY INDEX def_primary on `travel-sample` USING GSI',
       args: nil
     },
     {
@@ -397,31 +513,31 @@ n1ql_indexes = {
       args: nil
     },
     {
-      statement: "CREATE INDEX def_faa ON `travel-sample`(faa) USING GSI",
+      statement: 'CREATE INDEX def_faa ON `travel-sample`(faa) USING GSI',
       args: nil
     },
     {
-      statement: "CREATE INDEX def_icao ON `travel-sample`(icao) USING GSI",
+      statement: 'CREATE INDEX def_icao ON `travel-sample`(icao) USING GSI',
       args: nil
     },
     {
-      statement: "CREATE INDEX def_city ON `travel-sample`(city) USING GSI",
+      statement: 'CREATE INDEX def_city ON `travel-sample`(city) USING GSI',
       args: nil
     },
     {
-      statement: "CREATE INDEX def_airportname ON `travel-sample`(airportname) USING GSI",
+      statement: 'CREATE INDEX def_airportname ON `travel-sample`(airportname) USING GSI',
       args: nil
     },
     {
-      statement: "CREATE INDEX def_type ON `travel-sample`(type) USING GSI",
+      statement: 'CREATE INDEX def_type ON `travel-sample`(type) USING GSI',
       args: nil
     },
     {
-      statement: "CREATE INDEX def_sourceairport ON `travel-sample`(sourceairport) USING GSI",
+      statement: 'CREATE INDEX def_sourceairport ON `travel-sample`(sourceairport) USING GSI',
       args: nil
     },
     {
-      statement: "BUILD INDEX ON `travel-sample`(def_primary,def_name_type,def_faa,def_icao,def_city,def_airportname,def_type,def_sourceairport) USING GSI",
+      statement: 'BUILD INDEX ON `travel-sample`(def_primary,def_name_type,def_faa,def_icao,def_city,def_airportname,def_type,def_sourceairport) USING GSI',
       args: nil
     }
   ]
@@ -438,7 +554,7 @@ end
 %w(travel travel-sample).each do |dir|
   rm("#{dir}.zip") if File.exist?("#{dir}.zip")
   puts("set mtime of all files to #{GLOBAL_MTIME}...")
-  Dir["**/*"]
+  Dir['**/*']
     .sort_by { |f| [File.directory?(f) ? 1 : 0, f] }
     .map { |f| FileUtils.touch(f, mtime: GLOBAL_MTIME) }
   puts("archiving to #{dir}.zip...")
