@@ -15,8 +15,7 @@ import simplejson as json
 
 from optparse import OptionParser
 
-from couchbase import client
-from couchbase.rest_client import RestConnection, RestHelper
+from cluster_manager import ClusterManager
 
 class DocLoader(pump_transfer.Transfer):
 
@@ -89,35 +88,37 @@ class DocLoader(pump_transfer.Transfer):
                        'username': self.options.username,
                        'password': self.options.password}
 
-        self.rest = RestConnection(server_info)
         timeout_in_seconds = 120
+        cm = ClusterManager(host, port, self.options.username, self.options.password)
         if self.options.password:
             uri = "http://%s:%s/nodes/self" % (server_info["ip"], server_info["port"])
-            status, content = self.rest._http_request(uri)
+            content, errors = cm._get(uri)
+            _exitIfErrors(errors)
+
             quotaUnused = -1
-            if status:
-                try:
-                    json_parsed = json.loads(content)
-                    quotaTotal = json_parsed["storageTotals"]["ram"]["quotaTotal"]
-                    quotaUnused = quotaTotal - json_parsed["storageTotals"]["ram"]["quotaUsed"]
-                except:
-                    pass
+            try:
+                json_parsed = json.loads(content)
+                quotaTotal = json_parsed["storageTotals"]["ram"]["quotaTotal"]
+                quotaUnused = quotaTotal - json_parsed["storageTotals"]["ram"]["quotaUsed"]
+            except:
+                pass
             quotaUnused = quotaUnused / 1024.0
             if quotaUnused > 0 and quotaUnused < self.options.ram_quota:
                 sys.stderr.write("RAM quota specified is too large to be provisioned into this cluster\n")
                 sys.stderr.write("Available RAM quota: %d, requested: %d\n" %\
                     (quotaUnused, self.options.ram_quota))
                 sys.exit(1)
-            if not RestHelper(self.rest).bucket_exists(self.options.bucket):
-                self.rest.create_bucket(bucket=self.options.bucket,
-                                        ramQuotaMB=self.options.ram_quota,
-                                        authType='sasl')
+            if not self.bucket_exists(self.options.bucket):
+                _, errors = cm.create_bucket(self.options.bucket, self.options.ram_quota,
+                                             "sasl", "", 1, 0, "membase")
+                _exitIfErrors(errors)
+
 
                 start = time.time()
                 # Make sure the bucket exists before querying its status
                 bucket_exist = False
                 while (time.time() - start) <= timeout_in_seconds and not bucket_exist:
-                    bucket_exist = RestHelper(self.rest).bucket_exists(self.options.bucket)
+                    bucket_exist = self.bucket_exists(self.options.bucket)
                     if bucket_exist:
                         break
                     else:
@@ -129,33 +130,36 @@ class DocLoader(pump_transfer.Transfer):
                           (self.options.bucket, timeout_in_seconds))
                     sys.exit(1)
 
-        self.rest = RestConnection(server_info)
         #Query status for all bucket nodes
         uri = "http://%s:%s/pools/default/buckets/%s" % \
             (server_info["ip"], server_info["port"], self.options.bucket)
         all_node_ready = False
         start = time.time()
         while (time.time() - start) <= timeout_in_seconds and not all_node_ready:
-            status, content = self.rest._http_request(uri)
-            try:
-                json_data = json.loads(content)
-                all_node_ready = True
-                for node in json_data["nodes"]:
-                    if node["status"] != "healthy":
-                        all_node_ready = False
-                        break
-                if not all_node_ready:
-                    sys.stderr.write(".")
-                    time.sleep(2)
-            except Exception, err:
-                print "Exception:", err
-                break
+            content, errors = cm._get(uri)
+            _exitIfErrors(errors)
+
+            all_node_ready = True
+            for node in content["nodes"]:
+                if node["status"] != "healthy":
+                    all_node_ready = False
+                    break
+            if not all_node_ready:
+                sys.stderr.write(".")
+                time.sleep(2)
         if not all_node_ready:
-            sys.stderr.write("\nNode status is not ready after creating bucket '%s' within %s seconds" %\
+            sys.stderr.write("\nNode status is not ready after creating bucket '%s' within %s seconds\n" %\
                   (self.options.bucket, timeout_in_seconds))
             sys.exit(1)
         else:
             print "bucket creation is successful"
+
+    def bucket_exists(self, bucket):
+        host, port= util.hostport(self.options.node)
+        cm = ClusterManager(host, port, self.options.username, self.options.password)
+        buckets, errors = cm.list_buckets()
+        _exitIfErrors(errors)
+        return bucket in buckets
 
     def find_handlers(self, opts, source, sink):
         return pump_json.JSONSource, pump.PumpingStation.find_handler(opts, sink, pump_transfer.SINKS)
@@ -180,6 +184,12 @@ class DocLoader(pump_transfer.Transfer):
 
         #use cbtransfer to upload documents
         pump_transfer.Transfer.main(self, local_args)
+
+def _exitIfErrors(errors, prefix=""):
+    if errors:
+        for error in errors:
+            print prefix + error
+        sys.exit(1)
 
 if __name__ == '__main__':
     if os.name == 'nt':
